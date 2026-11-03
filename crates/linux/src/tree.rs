@@ -279,7 +279,10 @@ fn has_interface(interfaces: &[String], suffix: &str) -> bool {
 
 /// Only elements an agent can act on, and windows, need the slower per-element reads.
 fn wants_extras(role: &str, interfaces: &[String]) -> bool {
-    INTERACTIVE_ROLES.contains(&role) || role == "window" || has_interface(interfaces, ".Action")
+    INTERACTIVE_ROLES.contains(&role)
+        || role == "window"
+        || has_interface(interfaces, ".Action")
+        || has_interface(interfaces, ".EditableText")
 }
 
 /// Details that the cache does not carry, read per element.
@@ -306,11 +309,18 @@ impl Atspi {
             .string_property(target, ACCESSIBLE, "AccessibleId")
             .ok()
             .filter(|id| !id.is_empty());
-        let actions = if has_interface(interfaces, ".Action") {
+        let mut actions = if has_interface(interfaces, ".Action") {
             self.action_names(target)
         } else {
             Vec::new()
         };
+        if has_interface(interfaces, ".EditableText") {
+            for name in ["set-value", "type"] {
+                if !actions.iter().any(|a| a == name) {
+                    actions.push(name.to_string());
+                }
+            }
+        }
         let value = (role == "textfield" && has_interface(interfaces, ".Text"))
             .then(|| self.read_text(target))
             .flatten();

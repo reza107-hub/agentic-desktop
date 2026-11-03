@@ -44,7 +44,8 @@ If a user gave you this repository link and asked you to set it up, do these ste
 | List apps, snapshot | tested on a real desktop | compiles, **not run yet** | compiles, **not run yet** |
 | click, type, set-value | tested (GNOME Calculator) | compiles, **not run yet** | compiles, **not run yet** |
 | Clipboard (text) | needs a tool, see below; **not run yet** | compiles, **not run yet** | compiles, **not run yet** |
-| Keyboard and mouse (`--headed`) | X11 only, **not run yet**; refused on Wayland (tested) | compiles, **not run yet** | compiles, **not run yet** |
+| Keys: `press`, `type-text` (`--headed`) | X11 and GNOME Wayland. Wayland session opens and accepts keys (tested); typing into a real app **not confirmed** | compiles, **not run yet** | compiles, **not run yet** |
+| Mouse (`--headed`) | X11 only, **not run yet**; refused on Wayland (tested) | compiles, **not run yet** | compiles, **not run yet** |
 | Screenshot | portal on Wayland, X11 otherwise; **not verified** | compiles, **not run yet** | compiles, **not run yet** |
 | C library | built and tested with a C program | builds in CI | builds in CI |
 
@@ -101,7 +102,8 @@ AGENTIC_DESKTOP_FIXTURE=1 agentic-desktop snapshot --app Demo -i
 | `type REF TEXT` | Add text to the end of a text field |
 | `set-value REF TEXT` | Replace a text field's whole value |
 | `screenshot [--out FILE]` | Save the whole screen as a PNG. Never overwrites a file. The picture may show private content |
-| `press COMBO --headed` | Press real keys, like `enter`, `ctrl+c`, `alt+f4`, `ctrl+plus` |
+| `press COMBO --headed [--force]` | Press real keys, like `enter`, `ctrl+c`, `ctrl+plus`. Shortcuts that close or lock things (`alt+f4`, `meta+l`, `ctrl+alt+delete`) need `--force` |
+| `type-text TEXT --headed` | Type text with real keys into the field that has the keyboard focus. No newline or tab: use `press enter` and `press tab` |
 | `mouse-move X Y --headed` | Move the real pointer to a screen position |
 | `mouse-click X Y --headed [--button left\|right\|middle] [--count 1-3]` | Click the real mouse |
 | `mouse-wheel --headed [--dx N] [--dy N]` | Scroll the real wheel. Positive `--dy` scrolls down |
@@ -113,10 +115,27 @@ AGENTIC_DESKTOP_FIXTURE=1 agentic-desktop snapshot --app Demo -i
 
 `click`, `type` and `set-value` work through the accessibility API and do not move your pointer. `press` and the `mouse-*` commands send input to **whatever is on screen**, so they refuse to run unless you add `--headed`. Without it they return `POLICY_DENIED`.
 
-- **Linux:** works on X11 sessions only. On Wayland, the system blocks fake input by design, so these commands return `PLATFORM_NOT_SUPPORTED`. Use `click`, `type` and `set-value` there.
+- **Linux, keys (`press`, `type-text`):** work on X11 (XTEST) and on GNOME Wayland, where they go through Mutter's RemoteDesktop service. On Wayland only letters, digits and common symbols can be typed, so use `set-value` for accents and other alphabets. Keys go to the window that has the focus, so focus the right field first.
+- **Linux, mouse:** X11 only. Wayland gives programs no way to aim the pointer, so `mouse-*` return `PLATFORM_NOT_SUPPORTED`. Click elements with `click` instead.
 - **Windows:** keys use the US keyboard layout. A program running as administrator can ignore input from a normal terminal.
 - **macOS:** needs the Accessibility permission. Keys use the US layout.
 - Mouse positions are screen pixels, as shown in the `bounds` of a snapshot.
+
+### Browsers and fields that refuse `set-value`
+
+Some fields do not take text through the accessibility API. Brave's address bar ("Address and search bar") is one: its snapshot entry lists only `activate`, with no `set-value` or `type`, so `set-value` and `type` return `ACTION_NOT_SUPPORTED`. Snapshots now list `set-value` and `type` in `available_actions` for every field that does accept text, so check there first.
+
+For fields that do not accept it, focus the field and send real keys:
+
+```bash
+agentic-desktop click '@s8f3k2p9:e27'                      # "activate" focuses the address bar
+agentic-desktop --headed type-text "https://example.com"
+agentic-desktop --headed press enter
+```
+
+To open a web address, it is often simpler to run `xdg-open https://example.com` (or the browser's own command) from the shell.
+
+Web pages in Chromium browsers and Electron apps can have thousands of elements. `snapshot -i` read about 2,000 elements in Brave in a few seconds, but typing into page fields has not been tested here. The upstream project advises a browser-automation tool (Chrome DevTools Protocol) for dense web pages, and this project has no such mode.
 
 ### Screenshots
 
@@ -161,8 +180,9 @@ Use `agentic-desktop` to see and operate desktop apps. Run it as a shell command
 5. If the error is `STALE_REF` or `AMBIGUOUS_TARGET`, take a new snapshot and pick the element again.
 6. If `complete` is false, the app was only partly read. Do not assume a missing element does not exist.
 7. Snapshots, screenshots and clipboard text can contain private on-screen content. Do not paste them into public places.
-8. `press` and `mouse-*` need `--headed` and send input to whatever is on screen. Prefer `click`, `type` and `set-value`. Use `--headed` only when the user has asked for real keyboard or mouse input, and look at a fresh snapshot or screenshot first.
-9. On Linux with Wayland, `press` and `mouse-*` are not available.
+8. `press`, `type-text` and `mouse-*` need `--headed` and send input to whatever has the focus or is on screen. Prefer `click`, `type` and `set-value`. Use `--headed` only when the user has asked for real keyboard or mouse input, and check what has the focus first. Never use `--force` unless the user asks.
+9. If a field's `available_actions` has no `set-value` or `type` (for example a browser address bar), click it, then use `--headed type-text` and `--headed press enter`. To open a web address, run `xdg-open <address>` in the shell.
+10. On Linux with Wayland, `mouse-*` is not available. Keys (`press`, `type-text`) work on GNOME.
 ```
 
 ### Claude Code
@@ -223,6 +243,10 @@ ad_free_string(out);   /* never use free() */
 - `ad_abi_version()` returns the ABI number. Check it matches `AD_ABI_VERSION` at start-up.
 - Use the `release-ffi` profile. The normal release profile aborts on a panic, which would end your whole program.
 - `scripts/ffi-smoke.sh` builds the library and runs a small C program against it (Linux and macOS).
+
+## What is missing compared with the upstream project
+
+This is a smaller tool. It has about 20 commands, and the upstream [vercel-labs/agent-desktop](https://github.com/vercel-labs/agent-desktop) has 60. Not built here: `find`, `get`, `is`, `wait`, `launch`, `close-app`, `list-windows`, window control (`focus-window`, `move-window`, `resize-window`, `minimize`, `maximize`), `scroll`, `hover`, `drag`, double and triple click, right-click, `focus`, `expand`, `collapse`, `toggle`, notifications, sessions, traces, `batch`, the cursor overlay, the `--cdp` mode for Chromium apps, and built-in skills.
 
 ## Privacy and safety
 

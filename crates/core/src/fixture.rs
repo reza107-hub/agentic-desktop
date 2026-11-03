@@ -100,6 +100,11 @@ impl PlatformAdapter for FixtureAdapter {
         Ok(())
     }
 
+    fn type_text(&self, text: &str) -> Result<(), AppError> {
+        self.log_input(format!("type-text {text}"));
+        Ok(())
+    }
+
     fn mouse_move(&self, x: f64, y: f64) -> Result<(), AppError> {
         self.log_input(format!("move {x} {y}"));
         Ok(())

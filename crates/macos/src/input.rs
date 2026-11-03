@@ -30,6 +30,7 @@ unsafe extern "C" {
         wheel3: i32,
     ) -> CFTypeRef;
     fn CGEventSetFlags(event: CFTypeRef, flags: u64);
+    fn CGEventKeyboardSetUnicodeString(event: CFTypeRef, length: usize, text: *const u16);
     fn CGEventSetIntegerValueField(event: CFTypeRef, field: u32, value: i64);
     fn CGEventPost(tap: u32, event: CFTypeRef);
 }
@@ -74,6 +75,23 @@ pub fn press(combo: &Combo) -> Result<(), AppError> {
     }
     key_event(key.code, true, flags)?;
     key_event(key.code, false, flags)
+}
+
+/// Type text as Unicode key events, so any alphabet works and the layout does not matter.
+pub fn type_text(text: &str) -> Result<(), AppError> {
+    for character in text.chars() {
+        let mut buffer = [0u16; 2];
+        let units = character.encode_utf16(&mut buffer);
+        for down in [true, false] {
+            let event = unsafe { CGEventCreateKeyboardEvent(std::ptr::null(), 0, u8::from(down)) };
+            if !event.is_null() {
+                unsafe { CGEventKeyboardSetUnicodeString(event, units.len(), units.as_ptr()) };
+            }
+            post(event)?;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    Ok(())
 }
 
 fn mouse_event(kind: u32, x: f64, y: f64, button: u32, clicks: i64) -> Result<(), AppError> {

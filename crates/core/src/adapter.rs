@@ -59,6 +59,11 @@ pub trait PlatformAdapter {
         Err(AppError::not_supported("press"))
     }
 
+    /// Type text with real key presses into whatever has the keyboard focus.
+    fn type_text(&self, _text: &str) -> Result<(), AppError> {
+        Err(AppError::not_supported("type-text"))
+    }
+
     fn mouse_move(&self, _x: f64, _y: f64) -> Result<(), AppError> {
         Err(AppError::not_supported("mouse-move"))
     }

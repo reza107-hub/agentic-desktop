@@ -49,6 +49,10 @@ impl PlatformAdapter for MacOsAdapter {
         input::press(combo)
     }
 
+    fn type_text(&self, text: &str) -> Result<(), AppError> {
+        input::type_text(text)
+    }
+
     fn mouse_move(&self, x: f64, y: f64) -> Result<(), AppError> {
         input::mouse_move(x, y)
     }

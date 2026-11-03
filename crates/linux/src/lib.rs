@@ -8,6 +8,7 @@ mod keys;
 mod roles;
 mod screenshot;
 mod tree;
+mod wayland_keys;
 
 use agentic_desktop_core::input::{Combo, MouseButton};
 use agentic_desktop_core::{
@@ -58,6 +59,10 @@ impl PlatformAdapter for LinuxAdapter {
 
     fn press(&self, combo: &Combo) -> Result<(), AppError> {
         input::press(combo)
+    }
+
+    fn type_text(&self, text: &str) -> Result<(), AppError> {
+        input::type_text(text)
     }
 
     fn mouse_move(&self, x: f64, y: f64) -> Result<(), AppError> {

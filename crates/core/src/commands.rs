@@ -1,6 +1,6 @@
 use crate::adapter::{Action, PlatformAdapter};
 use crate::error::AppError;
-use crate::input::{MouseButton, parse_combo};
+use crate::input::{MouseButton, blocked_combo_reason, parse_combo};
 use crate::refs::{parse_ref, resolve};
 use crate::snapshot;
 use crate::store::SnapshotStore;
@@ -47,10 +47,46 @@ pub fn clipboard_clear(adapter: &dyn PlatformAdapter) -> Result<Value, AppError>
     Ok(json!({ "cleared": true }))
 }
 
-pub fn press(adapter: &dyn PlatformAdapter, combo_text: &str) -> Result<Value, AppError> {
+pub fn press(
+    adapter: &dyn PlatformAdapter,
+    combo_text: &str,
+    force: bool,
+) -> Result<Value, AppError> {
     let combo = parse_combo(combo_text)?;
+    if let Some(reason) = blocked_combo_reason(&combo).filter(|_| !force) {
+        return Err(AppError::new(
+            crate::ErrorCode::PolicyDenied,
+            format!("'{combo_text}' {reason}, so it is not sent unless forced"),
+        )
+        .with_suggestion("Add --force only if you really want this shortcut"));
+    }
     adapter.press(&combo)?;
     Ok(json!({ "pressed": combo_text.trim().to_lowercase() }))
+}
+
+/// Most characters one `type-text` call may send.
+pub const MAX_TYPED_CHARS: usize = 2_000;
+
+/// Type text with real keys into the focused field. Newline and tab are refused,
+/// because they can submit a form or move focus in the middle of a burst of text.
+pub fn type_text(adapter: &dyn PlatformAdapter, text: &str) -> Result<Value, AppError> {
+    let count = text.chars().count();
+    if count == 0 {
+        return Err(AppError::invalid_args("There is no text to type"));
+    }
+    if count > MAX_TYPED_CHARS {
+        return Err(AppError::invalid_args(format!(
+            "Type at most {MAX_TYPED_CHARS} characters at a time"
+        )));
+    }
+    if text.chars().any(char::is_control) {
+        return Err(AppError::invalid_args(
+            "Text with a newline, tab or other control character cannot be typed",
+        )
+        .with_suggestion("Type the text, then use press enter or press tab"));
+    }
+    adapter.type_text(text)?;
+    Ok(json!({ "chars": count }))
 }
 
 fn check_point(x: f64, y: f64) -> Result<(), AppError> {

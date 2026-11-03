@@ -9,7 +9,10 @@ Rust CLI + C library that lets AI agents see and operate desktop apps through th
 - A backend that cannot read the whole window marks cut nodes `subtree_truncated`; snapshots then report `complete: false`.
 - One JSON envelope per command. Exit codes: 0 ok, 1 error, 2 bad arguments.
 - No `unwrap`/`expect`/`panic!` outside tests. Keep Rust files under 400 lines.
-- Commands that send real keys or mouse input (`press`, `mouse-*`) must require `--headed` (`POLICY_DENIED` otherwise). Never add input commands without that guard.
+- Commands that send real keys or mouse input (`press`, `type-text`, `mouse-*`) must require `--headed` (`POLICY_DENIED` otherwise). Never add input commands without that guard. Shortcuts in `blocked_combo_reason` (alt+f4, meta+l ...) also need `--force`.
+- Never claim a platform "blocks" something without checking upstream's source in `../reference/agent-desktop-upstream`. Wayland keys work on GNOME through `org.gnome.Mutter.RemoteDesktop` (see `crates/linux/src/wayland_keys.rs`); only the pointer is X11-only.
+- Snapshots list `set-value` and `type` in `available_actions` only for elements with an editable-text interface. Brave's address bar has none, so it needs click + `type-text`.
+- In tests, never build input text with `$(printf '\n')`: command substitution strips it, and the test then types real text into the user's focused window.
 - The CLI is a library (`src/lib.rs`, crate `agentic_desktop_cli`) plus a thin `main.rs`; the C library calls `run_to_envelope`. Add new commands in `src/lib.rs` only.
 - Use `AGENTIC_DESKTOP_FIXTURE=1` to run the CLI against the fake desktop.
 
@@ -37,6 +40,6 @@ Rust CLI + C library that lets AI agents see and operate desktop apps through th
 ## Roadmap
 Done: 1 core + CLI, 2 Linux AT-SPI (+2b speed, positional refs), 3 Windows UIA, 4 macOS AX.
 Windows and macOS backends compile and lint from Linux but have NOT run on real machines.
-Phase 5 done in code: clipboard, keyboard and mouse (X11 only on Linux), screenshots, C library (`crates/ffi`, one `ad_execute(json_args)` entry point).
-Not live-tested: Linux clipboard (no tool installed), Linux X11 input (no X server), Wayland screenshot portal (permission prompt), everything on Windows and macOS.
+Phase 5 done in code: clipboard, keys (X11 and GNOME Wayland), mouse (X11 only), screenshots, C library (`crates/ffi`, one `ad_execute(json_args)` entry point).
+Not live-tested: Linux clipboard (no tool installed), Linux X11 input (no X server), key delivery into a real focused app on Wayland (the session accepts a Shift tap; nothing more confirmed), Wayland screenshot portal (permission prompt), everything on Windows and macOS.
 The fake desktop keeps its clipboard in memory, so it does not persist between CLI calls (tests cover the round trip).

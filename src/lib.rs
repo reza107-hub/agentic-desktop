@@ -57,7 +57,14 @@ enum Commands {
     /// Replace an element's value by ref
     SetValue { target: String, value: String },
     /// Press a key combination on the real keyboard, like ctrl+c (needs --headed)
-    Press { combo: String },
+    Press {
+        combo: String,
+        /// Send shortcuts that are normally held back (alt+f4, meta+l, ctrl+alt+delete ...)
+        #[arg(long)]
+        force: bool,
+    },
+    /// Type text with real keys into the focused field (needs --headed)
+    TypeText { text: String },
     /// Move the real mouse pointer to a screen position (needs --headed)
     #[command(allow_negative_numbers = true)]
     MouseMove { x: f64, y: f64 },
@@ -96,6 +103,7 @@ impl Commands {
             Commands::Type { .. } => "type",
             Commands::SetValue { .. } => "set-value",
             Commands::Press { .. } => "press",
+            Commands::TypeText { .. } => "type-text",
             Commands::MouseMove { .. } => "mouse-move",
             Commands::MouseClick { .. } => "mouse-click",
             Commands::MouseWheel { .. } => "mouse-wheel",
@@ -107,6 +115,7 @@ impl Commands {
         matches!(
             self,
             Commands::Press { .. }
+                | Commands::TypeText { .. }
                 | Commands::MouseMove { .. }
                 | Commands::MouseClick { .. }
                 | Commands::MouseWheel { .. }
@@ -168,7 +177,8 @@ fn run_command(command: &Commands) -> Result<Value, AppError> {
         Commands::SetValue { target, value } => {
             act(adapter, target, Action::SetValue(value.clone()))
         }
-        Commands::Press { combo } => commands::press(adapter, combo),
+        Commands::Press { combo, force } => commands::press(adapter, combo, *force),
+        Commands::TypeText { text } => commands::type_text(adapter, text),
         Commands::MouseMove { x, y } => commands::mouse_move(adapter, *x, *y),
         Commands::MouseClick {
             x,
@@ -222,6 +232,7 @@ mod tests {
     fn input_commands_need_headed() {
         for args in [
             vec!["agentic-desktop", "press", "enter"],
+            vec!["agentic-desktop", "type-text", "hello"],
             vec!["agentic-desktop", "mouse-move", "1", "2"],
             vec!["agentic-desktop", "mouse-click", "1", "2"],
             vec!["agentic-desktop", "mouse-wheel", "--dy", "3"],

@@ -1,6 +1,8 @@
 //! Keyboard and mouse through the X11 test extension (XTEST). X11 sessions only.
 
-use crate::keys::{find_key, input_block_reason, keysym_for, modifier_keysym};
+use crate::keys::{
+    KeyRoute, char_keysym, find_key, input_block_reason, key_route, keysym_for, modifier_keysym,
+};
 use agentic_desktop_core::input::{Combo, MouseButton};
 use agentic_desktop_core::{AppError, ErrorCode};
 use std::time::Duration;
@@ -106,6 +108,33 @@ impl Display {
         self.finish()
     }
 
+    fn type_text(&self, text: &str) -> Result<(), AppError> {
+        let mut plan = Vec::new();
+        for character in text.chars() {
+            let keysym = char_keysym(character).ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::ActionNotSupported,
+                    format!("'{character}' cannot be typed with keys (letters, digits and common symbols only)"),
+                )
+                .with_suggestion("Use set-value on the element for accents and other alphabets")
+            })?;
+            plan.push(self.keycode(keysym)?);
+        }
+        let shift = self.keycode(SHIFT_KEYSYM)?.0;
+        for (key, needs_shift) in plan {
+            if needs_shift {
+                self.fake(KEY_PRESS_EVENT, shift, 0, 0)?;
+            }
+            self.fake(KEY_PRESS_EVENT, key, 0, 0)?;
+            self.fake(KEY_RELEASE_EVENT, key, 0, 0)?;
+            if needs_shift {
+                self.fake(KEY_RELEASE_EVENT, shift, 0, 0)?;
+            }
+            self.finish()?;
+        }
+        Ok(())
+    }
+
     fn move_to(&self, x: f64, y: f64) -> Result<(), AppError> {
         self.fake(MOTION_NOTIFY_EVENT, 0, x.round() as i16, y.round() as i16)
     }
@@ -121,8 +150,28 @@ impl Display {
     }
 }
 
+fn route() -> Result<KeyRoute, AppError> {
+    let session = std::env::var("XDG_SESSION_TYPE").ok();
+    key_route(
+        session.as_deref(),
+        std::env::var_os("WAYLAND_DISPLAY").is_some(),
+        std::env::var_os("DISPLAY").is_some(),
+    )
+    .map_err(|reason| AppError::new(ErrorCode::PlatformNotSupported, reason))
+}
+
 pub fn press(combo: &Combo) -> Result<(), AppError> {
-    Display::open()?.press(combo)
+    match route()? {
+        KeyRoute::Wayland => crate::wayland_keys::press(combo),
+        KeyRoute::X11 => Display::open()?.press(combo),
+    }
+}
+
+pub fn type_text(text: &str) -> Result<(), AppError> {
+    match route()? {
+        KeyRoute::Wayland => crate::wayland_keys::type_text(text),
+        KeyRoute::X11 => Display::open()?.type_text(text),
+    }
 }
 
 pub fn mouse_move(x: f64, y: f64) -> Result<(), AppError> {

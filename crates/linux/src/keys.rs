@@ -35,6 +35,36 @@ pub fn keysym_for(key: Key) -> u32 {
     }
 }
 
+/// The key symbol for a character that can be typed with keys: printable ASCII.
+pub fn char_keysym(character: char) -> Option<u32> {
+    (' '..='~').contains(&character).then_some(character as u32)
+}
+
+/// Which way keys are sent in this session.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum KeyRoute {
+    /// GNOME Wayland, through Mutter's RemoteDesktop service.
+    Wayland,
+    /// X11, through the XTEST extension.
+    X11,
+}
+
+/// Choose the key route. A Wayland session always uses Wayland keys, even though
+/// an X11 display also exists there, because X11 input would only reach old apps.
+pub fn key_route(
+    session_type: Option<&str>,
+    wayland_display_set: bool,
+    x_display_set: bool,
+) -> Result<KeyRoute, &'static str> {
+    if session_type == Some("wayland") || wayland_display_set {
+        return Ok(KeyRoute::Wayland);
+    }
+    if x_display_set {
+        return Ok(KeyRoute::X11);
+    }
+    Err("No display is available for keyboard input (neither WAYLAND_DISPLAY nor DISPLAY is set)")
+}
+
 /// Where a key symbol sits in the keyboard map: plain, or only with Shift held.
 #[derive(Debug, PartialEq, Eq)]
 pub struct KeyPlace {
@@ -68,8 +98,9 @@ pub fn find_key(
     None
 }
 
-/// Why synthetic input cannot work here, or None when it can.
-/// On Wayland, X11 test input only reaches old X11 apps, which would mislead the caller.
+/// Why the pointer cannot be moved or clicked here, or None when it can.
+/// Wayland gives programs no way to aim the pointer, and X11 test input there only
+/// reaches old X11 apps, which would mislead the caller. Keys are a separate route.
 pub fn input_block_reason(
     session_type: Option<&str>,
     wayland_display_set: bool,
@@ -77,7 +108,7 @@ pub fn input_block_reason(
 ) -> Option<&'static str> {
     if session_type == Some("wayland") || wayland_display_set {
         return Some(
-            "Wayland blocks synthetic keyboard and mouse input. Log in to an X11 session, or use ref actions (click, type, set-value) instead",
+            "Wayland does not let programs aim or click the pointer. Keys still work (press, type-text); for clicking, use click on an element, or log in to an X11 session",
         );
     }
     if !x_display_set {
@@ -124,6 +155,26 @@ mod tests {
         );
         assert_eq!(find_key(&map, 2, 38, 0x7a), None);
         assert_eq!(find_key(&map, 0, 38, 0x61), None);
+    }
+
+    #[test]
+    fn keys_go_by_session_type() {
+        assert_eq!(
+            key_route(Some("wayland"), true, true),
+            Ok(KeyRoute::Wayland)
+        );
+        assert_eq!(key_route(None, true, true), Ok(KeyRoute::Wayland));
+        assert_eq!(key_route(Some("x11"), false, true), Ok(KeyRoute::X11));
+        assert!(key_route(None, false, false).is_err());
+    }
+
+    #[test]
+    fn printable_ascii_has_key_symbols() {
+        assert_eq!(char_keysym('a'), Some(0x61));
+        assert_eq!(char_keysym(' '), Some(0x20));
+        assert_eq!(char_keysym('~'), Some(0x7e));
+        assert_eq!(char_keysym('\u{e9}'), None);
+        assert_eq!(char_keysym('\n'), None);
     }
 
     #[test]

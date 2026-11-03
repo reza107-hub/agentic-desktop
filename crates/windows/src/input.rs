@@ -5,10 +5,10 @@ use agentic_desktop_core::input::{Combo, MouseButton};
 use agentic_desktop_core::{AppError, ErrorCode};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT,
-    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, MOUSE_EVENT_FLAGS, MOUSEEVENTF_HWHEEL,
-    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
-    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEINPUT, SendInput,
-    VIRTUAL_KEY,
+    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, MOUSE_EVENT_FLAGS,
+    MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
+    MOUSEINPUT, SendInput, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{SetCursorPos, SetProcessDPIAware};
 
@@ -84,6 +84,34 @@ pub fn press(combo: &Combo) -> Result<(), AppError> {
     events.push(key_event(key.code, key.extended, false));
     events.push(key_event(key.code, key.extended, true));
     events.extend(held.iter().rev().map(|code| key_event(*code, false, true)));
+    send(&events)
+}
+
+fn unicode_event(unit: u16, up: bool) -> INPUT {
+    let mut flags = KEYEVENTF_UNICODE;
+    if up {
+        flags |= KEYEVENTF_KEYUP;
+    }
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(0),
+                wScan: unit,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+/// Type text as Unicode key events, so any alphabet works and the layout does not matter.
+pub fn type_text(text: &str) -> Result<(), AppError> {
+    let events: Vec<INPUT> = text
+        .encode_utf16()
+        .flat_map(|unit| [unicode_event(unit, false), unicode_event(unit, true)])
+        .collect();
     send(&events)
 }
 

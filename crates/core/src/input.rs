@@ -142,6 +142,36 @@ pub fn parse_combo(text: &str) -> Result<Combo, AppError> {
     Ok(Combo { modifiers, key })
 }
 
+/// Why a shortcut is held back unless the caller forces it. These shortcuts close
+/// windows, take the screen away or switch the session, so an agent should not send
+/// them by accident.
+pub fn blocked_combo_reason(combo: &Combo) -> Option<&'static str> {
+    let has = |m: Modifier| combo.modifiers.contains(&m);
+    let only = |wanted: &[Modifier]| {
+        combo.modifiers.len() == wanted.len() && wanted.iter().all(|m| has(*m))
+    };
+    match combo.key {
+        Key::Named(NamedKey::F(4)) if only(&[Modifier::Alt]) => Some("closes the focused window"),
+        Key::Named(NamedKey::F(2)) if only(&[Modifier::Alt]) => Some("opens the run dialog"),
+        Key::Named(NamedKey::Tab) if only(&[Modifier::Alt]) || only(&[Modifier::Meta]) => {
+            Some("switches to another window")
+        }
+        Key::Char('l') if only(&[Modifier::Meta]) => Some("locks the screen"),
+        Key::Char('d') if only(&[Modifier::Meta]) => Some("shows the desktop"),
+        Key::Char('t') if only(&[Modifier::Ctrl, Modifier::Alt]) => Some("opens a terminal"),
+        Key::Char('l') if only(&[Modifier::Ctrl, Modifier::Alt]) => Some("locks the screen"),
+        Key::Named(NamedKey::Delete | NamedKey::Backspace)
+            if only(&[Modifier::Ctrl, Modifier::Alt]) =>
+        {
+            Some("logs out or restarts the session")
+        }
+        Key::Named(NamedKey::F(_)) if only(&[Modifier::Ctrl, Modifier::Alt]) => {
+            Some("switches to another console")
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,5 +224,42 @@ mod tests {
     fn mouse_buttons_parse() {
         assert_eq!(MouseButton::parse("Right").unwrap(), MouseButton::Right);
         assert!(MouseButton::parse("fourth").is_err());
+    }
+
+    #[test]
+    fn dangerous_shortcuts_are_flagged() {
+        for text in [
+            "alt+f4",
+            "alt+tab",
+            "meta+l",
+            "cmd+d",
+            "ctrl+alt+t",
+            "ctrl+alt+delete",
+            "ctrl+alt+f3",
+        ] {
+            assert!(
+                blocked_combo_reason(&parse_combo(text).unwrap()).is_some(),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_shortcuts_are_not_flagged() {
+        for text in [
+            "ctrl+c",
+            "ctrl+l",
+            "enter",
+            "alt+left",
+            "ctrl+shift+t",
+            "f4",
+            "alt+f5",
+            "ctrl+f4",
+        ] {
+            assert!(
+                blocked_combo_reason(&parse_combo(text).unwrap()).is_none(),
+                "{text}"
+            );
+        }
     }
 }

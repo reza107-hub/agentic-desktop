@@ -246,7 +246,7 @@ fn backends_without_a_clipboard_say_so() {
 #[test]
 fn press_and_mouse_commands_reach_the_adapter() {
     let adapter = FixtureAdapter::new();
-    commands::press(&adapter, "Ctrl+Shift+T").unwrap();
+    commands::press(&adapter, "Ctrl+Shift+T", false).unwrap();
     commands::mouse_move(&adapter, 10.0, 20.0).unwrap();
     commands::mouse_click(&adapter, 5.0, 6.0, "right", 2).unwrap();
     commands::mouse_wheel(&adapter, 0, -3).unwrap();
@@ -261,7 +261,9 @@ fn press_and_mouse_commands_reach_the_adapter() {
 fn bad_input_is_refused_before_reaching_the_adapter() {
     let adapter = FixtureAdapter::new();
     assert_eq!(
-        commands::press(&adapter, "ctrl+banana").unwrap_err().code,
+        commands::press(&adapter, "ctrl+banana", false)
+            .unwrap_err()
+            .code,
         ErrorCode::InvalidArgs
     );
     assert_eq!(
@@ -318,7 +320,7 @@ fn backends_without_input_or_screenshots_say_so() {
         }
     }
     assert_eq!(
-        commands::press(&Bare, "a").unwrap_err().code,
+        commands::press(&Bare, "a", false).unwrap_err().code,
         ErrorCode::PlatformNotSupported
     );
     assert_eq!(
@@ -330,4 +332,37 @@ fn backends_without_input_or_screenshots_say_so() {
         commands::screenshot(&Bare, &store, None).unwrap_err().code,
         ErrorCode::PlatformNotSupported
     );
+}
+
+#[test]
+fn dangerous_shortcuts_need_force() {
+    let adapter = FixtureAdapter::new();
+    let error = commands::press(&adapter, "alt+f4", false).unwrap_err();
+    assert_eq!(error.code, ErrorCode::PolicyDenied);
+    assert!(adapter.input_log().is_empty());
+    commands::press(&adapter, "alt+f4", true).unwrap();
+    assert_eq!(adapter.input_log().len(), 1);
+}
+
+#[test]
+fn type_text_checks_its_input() {
+    let adapter = FixtureAdapter::new();
+    commands::type_text(&adapter, "https://tuberstudio.ai").unwrap();
+    assert_eq!(
+        adapter.input_log(),
+        vec!["type-text https://tuberstudio.ai"]
+    );
+    for bad in ["", "two\nlines", "tab\there"] {
+        assert_eq!(
+            commands::type_text(&adapter, bad).unwrap_err().code,
+            ErrorCode::InvalidArgs,
+            "{bad:?}"
+        );
+    }
+    let long = "x".repeat(commands::MAX_TYPED_CHARS + 1);
+    assert_eq!(
+        commands::type_text(&adapter, &long).unwrap_err().code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(adapter.input_log().len(), 1);
 }
