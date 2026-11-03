@@ -15,6 +15,7 @@ pub enum ErrorCode {
     PlatformNotSupported,
     Timeout,
     InvalidArgs,
+    PolicyDenied,
     SnapshotNotFound,
     Internal,
 }

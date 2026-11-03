@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "agentic_desktop_cli"
+path = "lib.rs"
+
 [[bin]]
 name = "agentic-desktop"
 path = "main.rs"

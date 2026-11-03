@@ -9,3 +9,4 @@ publish = false
 agentic-desktop-core.workspace = true
 serde.workspace                = true
 zbus                           = "5"
+x11rb                          = { version = "0.13", default-features = false, features = ["xtest"] }

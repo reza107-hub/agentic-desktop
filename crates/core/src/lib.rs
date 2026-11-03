@@ -6,6 +6,8 @@ pub mod commands;
 pub mod envelope;
 pub mod error;
 pub mod fixture;
+pub mod image;
+pub mod input;
 pub mod node;
 pub mod refs;
 pub mod snapshot;

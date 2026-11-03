@@ -4,6 +4,11 @@
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int};
 
+/// Release a CoreFoundation object we created and no longer need.
+pub unsafe fn release(object: CFTypeRef) {
+    unsafe { CFRelease(object) }
+}
+
 pub type CFTypeRef = *const c_void;
 pub type CFIndex = isize;
 pub type AXError = i32;

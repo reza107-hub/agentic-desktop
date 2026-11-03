@@ -37,6 +37,9 @@ jobs:
           size=$(wc -c < "$bin")
           echo "binary size: $size bytes"
           [ "$size" -lt 15000000 ]
+      - name: C library smoke test
+        if: runner.os != 'Windows'
+        run: ./scripts/ffi-smoke.sh
       - name: Fixture smoke test
         shell: bash
         env:

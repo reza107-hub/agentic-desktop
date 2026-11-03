@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use crate::input::{Combo, MouseButton};
 use crate::node::AccessibilityNode;
 use serde::Serialize;
 
@@ -51,6 +52,35 @@ pub trait PlatformAdapter {
 
     fn capture_tree(&self, _app: &str) -> Result<AccessibilityNode, AppError> {
         Err(AppError::not_supported("snapshot"))
+    }
+
+    /// Press a key combination on the real keyboard.
+    fn press(&self, _combo: &Combo) -> Result<(), AppError> {
+        Err(AppError::not_supported("press"))
+    }
+
+    fn mouse_move(&self, _x: f64, _y: f64) -> Result<(), AppError> {
+        Err(AppError::not_supported("mouse-move"))
+    }
+
+    fn mouse_click(
+        &self,
+        _x: f64,
+        _y: f64,
+        _button: MouseButton,
+        _count: u8,
+    ) -> Result<(), AppError> {
+        Err(AppError::not_supported("mouse-click"))
+    }
+
+    /// Scroll by whole wheel steps. Positive `dy` scrolls down, positive `dx` scrolls right.
+    fn mouse_wheel(&self, _dx: i32, _dy: i32) -> Result<(), AppError> {
+        Err(AppError::not_supported("mouse-wheel"))
+    }
+
+    /// Capture the whole screen as a PNG file at `out`, and return its size in pixels.
+    fn screenshot(&self, _out: &std::path::Path) -> Result<(u32, u32), AppError> {
+        Err(AppError::not_supported("screenshot"))
     }
 
     fn clipboard_get(&self) -> Result<String, AppError> {

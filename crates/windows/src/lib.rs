@@ -2,11 +2,18 @@
 
 #[cfg(windows)]
 mod clipboard;
+#[cfg(windows)]
+mod input;
+mod keys;
 mod roles;
+#[cfg(windows)]
+mod screenshot;
 #[cfg(windows)]
 mod uia;
 
 use agentic_desktop_core::PlatformAdapter;
+#[cfg(windows)]
+use agentic_desktop_core::input::{Combo, MouseButton};
 #[cfg(windows)]
 use agentic_desktop_core::{AccessibilityNode, Action, ActionReport, AppError, AppInfo};
 
@@ -34,6 +41,26 @@ impl PlatformAdapter for WindowsAdapter {
 
     fn list_apps(&self) -> Result<Vec<AppInfo>, AppError> {
         uia::Uia::new()?.list_apps()
+    }
+
+    fn press(&self, combo: &Combo) -> Result<(), AppError> {
+        input::press(combo)
+    }
+
+    fn mouse_move(&self, x: f64, y: f64) -> Result<(), AppError> {
+        input::mouse_move(x, y)
+    }
+
+    fn mouse_click(&self, x: f64, y: f64, button: MouseButton, count: u8) -> Result<(), AppError> {
+        input::mouse_click(x, y, button, count)
+    }
+
+    fn mouse_wheel(&self, dx: i32, dy: i32) -> Result<(), AppError> {
+        input::mouse_wheel(dx, dy)
+    }
+
+    fn screenshot(&self, out: &std::path::Path) -> Result<(u32, u32), AppError> {
+        screenshot::capture(out)
     }
 
     fn clipboard_get(&self) -> Result<String, AppError> {

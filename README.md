@@ -44,7 +44,9 @@ If a user gave you this repository link and asked you to set it up, do these ste
 | List apps, snapshot | tested on a real desktop | compiles, **not run yet** | compiles, **not run yet** |
 | click, type, set-value | tested (GNOME Calculator) | compiles, **not run yet** | compiles, **not run yet** |
 | Clipboard (text) | needs a tool, see below; **not run yet** | compiles, **not run yet** | compiles, **not run yet** |
-| Keyboard, mouse, screenshots | not built | not built | not built |
+| Keyboard and mouse (`--headed`) | X11 only, **not run yet**; refused on Wayland (tested) | compiles, **not run yet** | compiles, **not run yet** |
+| Screenshot | portal on Wayland, X11 otherwise; **not verified** | compiles, **not run yet** | compiles, **not run yet** |
+| C library | built and tested with a C program | builds in CI | builds in CI |
 
 "Compiles" means it builds, passes lint and passes its unit tests on a real GitHub runner for that OS (see the CI workflow). It does not mean it has controlled a real app. Treat Windows and macOS as untested against real apps until someone runs them.
 
@@ -98,9 +100,30 @@ AGENTIC_DESKTOP_FIXTURE=1 agentic-desktop snapshot --app Demo -i
 | `click REF` | Press, activate or toggle an element |
 | `type REF TEXT` | Add text to the end of a text field |
 | `set-value REF TEXT` | Replace a text field's whole value |
+| `screenshot [--out FILE]` | Save the whole screen as a PNG. Never overwrites a file. The picture may show private content |
+| `press COMBO --headed` | Press real keys, like `enter`, `ctrl+c`, `alt+f4`, `ctrl+plus` |
+| `mouse-move X Y --headed` | Move the real pointer to a screen position |
+| `mouse-click X Y --headed [--button left\|right\|middle] [--count 1-3]` | Click the real mouse |
+| `mouse-wheel --headed [--dx N] [--dy N]` | Scroll the real wheel. Positive `--dy` scrolls down |
 | `clipboard-get` | Print the clipboard text. It may hold private content |
 | `clipboard-set TEXT` | Replace the clipboard text |
 | `clipboard-clear` | Empty the clipboard |
+
+### Real keyboard and mouse need `--headed`
+
+`click`, `type` and `set-value` work through the accessibility API and do not move your pointer. `press` and the `mouse-*` commands send input to **whatever is on screen**, so they refuse to run unless you add `--headed`. Without it they return `POLICY_DENIED`.
+
+- **Linux:** works on X11 sessions only. On Wayland, the system blocks fake input by design, so these commands return `PLATFORM_NOT_SUPPORTED`. Use `click`, `type` and `set-value` there.
+- **Windows:** keys use the US keyboard layout. A program running as administrator can ignore input from a normal terminal.
+- **macOS:** needs the Accessibility permission. Keys use the US layout.
+- Mouse positions are screen pixels, as shown in the `bounds` of a snapshot.
+
+### Screenshots
+
+- **Linux (Wayland):** asks the desktop screenshot portal. GNOME may show a permission prompt on first use and wait for you to allow it. Run the command yourself the first time.
+- **Linux (X11):** reads the screen directly.
+- **macOS:** needs the Screen Recording permission for your terminal.
+- **Windows:** captures the primary display.
 
 ## Output
 
@@ -137,7 +160,9 @@ Use `agentic-desktop` to see and operate desktop apps. Run it as a shell command
 4. Take a new snapshot after every action to check the result. Never reuse refs from an older snapshot after the screen changed.
 5. If the error is `STALE_REF` or `AMBIGUOUS_TARGET`, take a new snapshot and pick the element again.
 6. If `complete` is false, the app was only partly read. Do not assume a missing element does not exist.
-7. Snapshots can contain private on-screen content. Do not paste them into public places.
+7. Snapshots, screenshots and clipboard text can contain private on-screen content. Do not paste them into public places.
+8. `press` and `mouse-*` need `--headed` and send input to whatever is on screen. Prefer `click`, `type` and `set-value`. Use `--headed` only when the user has asked for real keyboard or mouse input, and look at a fresh snapshot or screenshot first.
+9. On Linux with Wayland, `press` and `mouse-*` are not available.
 ```
 
 ### Claude Code
@@ -175,10 +200,34 @@ Use `agentic-desktop` to see and operate desktop apps. Run it as a shell command
 - **Claude Code:** written from its documented behaviour.
 - **Codex and Antigravity:** checked against web search results on 2026-11-03, not by running those tools. The Codex details come from OpenAI's [configuration reference](https://developers.openai.com/codex/config-reference) and [approvals and security](https://developers.openai.com/codex/agent-approvals-security) pages. The Antigravity details come from third-party guides ([thepromptshelf.dev](https://thepromptshelf.dev/blog/google-antigravity-agents-md-rules-guide-2026/), [aidevhub.net](https://aidevhub.net/blog/google-antigravity-custom-rules-tuning), [cybedefend.com](https://www.cybedefend.com/en/blog/is-google-antigravity-safe)), because I did not find Google's own documentation. Settings and file names change between versions, so confirm them in each tool's own docs.
 
+## C library
+
+`crates/ffi` builds a C library that runs the same commands and returns the same JSON, so other languages can call it without starting a process each time.
+
+```bash
+cargo build --profile release-ffi -p agentic-desktop-ffi
+```
+
+The library is `target/release-ffi/libagentic_desktop_ffi.so` (`.dylib` on macOS, `agentic_desktop_ffi.dll` on Windows). The header is `crates/ffi/include/agentic_desktop.h`.
+
+```c
+#include "agentic_desktop.h"
+
+char *out = ad_execute("[\"snapshot\",\"--app\",\"Calculator\",\"-i\"]");
+/* out is the JSON line the CLI would print */
+ad_free_string(out);   /* never use free() */
+```
+
+- Pass the arguments after the program name as a JSON array of strings.
+- Input commands still need `"--headed"` in the array.
+- `ad_abi_version()` returns the ABI number. Check it matches `AD_ABI_VERSION` at start-up.
+- Use the `release-ffi` profile. The normal release profile aborts on a panic, which would end your whole program.
+- `scripts/ffi-smoke.sh` builds the library and runs a small C program against it (Linux and macOS).
+
 ## Privacy and safety
 
 - Snapshots can contain anything visible in an app: messages, names, passwords typed into visible fields. Keep them out of public logs and uploads.
-- The agent can click and type in any app it can see. Only point it at apps you are happy for it to operate, and keep an eye on what it does.
+- The agent can click and type in any app it can see. `press` and `mouse-*` can reach anything on screen, which is why they need `--headed`. Only point it at apps you are happy for it to operate, and keep an eye on what it does.
 - The tool never sends data anywhere. Whatever your agent does with the output is up to that agent.
 
 ## Development

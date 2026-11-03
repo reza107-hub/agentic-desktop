@@ -26,6 +26,10 @@ impl SnapshotStore {
         Ok(Self::new(PathBuf::from(home).join(".agentic-desktop")))
     }
 
+    pub fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+
     fn refmap_path(&self, snapshot_id: &str) -> Result<PathBuf, AppError> {
         if snapshot_id.is_empty() || !snapshot_id.chars().all(|c| c.is_ascii_alphanumeric()) {
             return Err(AppError::invalid_args("Invalid snapshot id"));

@@ -12,6 +12,7 @@ pub struct FixtureAdapter {
     tree: Mutex<AccessibilityNode>,
     performed: Mutex<Vec<String>>,
     clipboard: Mutex<String>,
+    input_log: Mutex<Vec<String>>,
 }
 
 pub fn demo_tree() -> AccessibilityNode {
@@ -43,12 +44,21 @@ impl FixtureAdapter {
             tree: Mutex::new(tree),
             performed: Mutex::new(Vec::new()),
             clipboard: Mutex::new(String::new()),
+            input_log: Mutex::new(Vec::new()),
         }
     }
 
     /// Change what the fake desktop shows, to simulate the UI moving on.
     pub fn set_tree(&self, tree: AccessibilityNode) {
         *self.tree.lock().unwrap() = tree;
+    }
+
+    pub fn input_log(&self) -> Vec<String> {
+        self.input_log.lock().unwrap().clone()
+    }
+
+    fn log_input(&self, line: String) {
+        self.input_log.lock().unwrap().push(line);
     }
 
     pub fn performed(&self) -> Vec<String> {
@@ -83,6 +93,37 @@ impl PlatformAdapter for FixtureAdapter {
             name: FIXTURE_APP.to_string(),
             pid: None,
         }])
+    }
+
+    fn press(&self, combo: &crate::input::Combo) -> Result<(), AppError> {
+        self.log_input(format!("press {:?} {:?}", combo.modifiers, combo.key));
+        Ok(())
+    }
+
+    fn mouse_move(&self, x: f64, y: f64) -> Result<(), AppError> {
+        self.log_input(format!("move {x} {y}"));
+        Ok(())
+    }
+
+    fn mouse_click(
+        &self,
+        x: f64,
+        y: f64,
+        button: crate::input::MouseButton,
+        count: u8,
+    ) -> Result<(), AppError> {
+        self.log_input(format!("click {x} {y} {button:?} {count}"));
+        Ok(())
+    }
+
+    fn mouse_wheel(&self, dx: i32, dy: i32) -> Result<(), AppError> {
+        self.log_input(format!("wheel {dx} {dy}"));
+        Ok(())
+    }
+
+    fn screenshot(&self, out: &std::path::Path) -> Result<(u32, u32), AppError> {
+        crate::image::write_png(out, 4, 4, &[200u8; 4 * 4 * 4])?;
+        Ok((4, 4))
     }
 
     fn clipboard_get(&self) -> Result<String, AppError> {

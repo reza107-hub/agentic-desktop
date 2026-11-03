@@ -1,5 +1,6 @@
 use crate::adapter::{Action, PlatformAdapter};
 use crate::error::AppError;
+use crate::input::{MouseButton, parse_combo};
 use crate::refs::{parse_ref, resolve};
 use crate::snapshot;
 use crate::store::SnapshotStore;
@@ -44,6 +45,83 @@ pub fn clipboard_set(adapter: &dyn PlatformAdapter, text: &str) -> Result<Value,
 pub fn clipboard_clear(adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
     adapter.clipboard_clear()?;
     Ok(json!({ "cleared": true }))
+}
+
+pub fn press(adapter: &dyn PlatformAdapter, combo_text: &str) -> Result<Value, AppError> {
+    let combo = parse_combo(combo_text)?;
+    adapter.press(&combo)?;
+    Ok(json!({ "pressed": combo_text.trim().to_lowercase() }))
+}
+
+fn check_point(x: f64, y: f64) -> Result<(), AppError> {
+    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 || x > 100_000.0 || y > 100_000.0 {
+        return Err(AppError::invalid_args(
+            "Mouse position must be a screen position from 0 to 100000",
+        ));
+    }
+    Ok(())
+}
+
+pub fn mouse_move(adapter: &dyn PlatformAdapter, x: f64, y: f64) -> Result<Value, AppError> {
+    check_point(x, y)?;
+    adapter.mouse_move(x, y)?;
+    Ok(json!({ "x": x, "y": y }))
+}
+
+pub fn mouse_click(
+    adapter: &dyn PlatformAdapter,
+    x: f64,
+    y: f64,
+    button: &str,
+    count: u8,
+) -> Result<Value, AppError> {
+    check_point(x, y)?;
+    if !(1..=3).contains(&count) {
+        return Err(AppError::invalid_args("Click count must be 1, 2 or 3"));
+    }
+    let button = MouseButton::parse(button)?;
+    adapter.mouse_click(x, y, button, count)?;
+    Ok(json!({ "x": x, "y": y, "button": format!("{button:?}").to_lowercase(), "count": count }))
+}
+
+pub fn mouse_wheel(adapter: &dyn PlatformAdapter, dx: i32, dy: i32) -> Result<Value, AppError> {
+    if dx == 0 && dy == 0 {
+        return Err(AppError::invalid_args("Give a non-zero --dx or --dy"));
+    }
+    if dx.unsigned_abs() > 1000 || dy.unsigned_abs() > 1000 {
+        return Err(AppError::invalid_args(
+            "Scroll by at most 1000 steps at a time",
+        ));
+    }
+    adapter.mouse_wheel(dx, dy)?;
+    Ok(json!({ "dx": dx, "dy": dy }))
+}
+
+/// Take a screenshot into `out`, or into the state folder when no path is given.
+/// An existing file is never overwritten.
+pub fn screenshot(
+    adapter: &dyn PlatformAdapter,
+    store: &SnapshotStore,
+    out: Option<&str>,
+) -> Result<Value, AppError> {
+    let path = match out {
+        Some(text) => std::path::PathBuf::from(text),
+        None => store
+            .root()
+            .join("screenshots")
+            .join(format!("{}.png", snapshot::new_snapshot_id())),
+    };
+    if path.exists() {
+        return Err(
+            AppError::invalid_args(format!("'{}' already exists", path.display()))
+                .with_suggestion("Pick a new file name"),
+        );
+    }
+    if let Some(folder) = path.parent().filter(|f| !f.as_os_str().is_empty()) {
+        std::fs::create_dir_all(folder)?;
+    }
+    let (width, height) = adapter.screenshot(&path)?;
+    Ok(json!({ "path": path.display().to_string(), "width": width, "height": height }))
 }
 
 pub fn take_snapshot(

@@ -242,3 +242,92 @@ fn backends_without_a_clipboard_say_so() {
     let error = commands::clipboard_clear(&Bare).unwrap_err();
     assert_eq!(error.code, ErrorCode::PlatformNotSupported);
 }
+
+#[test]
+fn press_and_mouse_commands_reach_the_adapter() {
+    let adapter = FixtureAdapter::new();
+    commands::press(&adapter, "Ctrl+Shift+T").unwrap();
+    commands::mouse_move(&adapter, 10.0, 20.0).unwrap();
+    commands::mouse_click(&adapter, 5.0, 6.0, "right", 2).unwrap();
+    commands::mouse_wheel(&adapter, 0, -3).unwrap();
+    let log = adapter.input_log();
+    assert_eq!(log.len(), 4);
+    assert!(log[0].contains("Ctrl") && log[0].contains("Shift"));
+    assert_eq!(log[2], "click 5 6 Right 2");
+    assert_eq!(log[3], "wheel 0 -3");
+}
+
+#[test]
+fn bad_input_is_refused_before_reaching_the_adapter() {
+    let adapter = FixtureAdapter::new();
+    assert_eq!(
+        commands::press(&adapter, "ctrl+banana").unwrap_err().code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(
+        commands::mouse_move(&adapter, -1.0, 0.0).unwrap_err().code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(
+        commands::mouse_move(&adapter, f64::NAN, 0.0)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(
+        commands::mouse_click(&adapter, 1.0, 1.0, "left", 4)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(
+        commands::mouse_click(&adapter, 1.0, 1.0, "nope", 1)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(
+        commands::mouse_wheel(&adapter, 0, 0).unwrap_err().code,
+        ErrorCode::InvalidArgs
+    );
+    assert_eq!(
+        commands::mouse_wheel(&adapter, 0, 5000).unwrap_err().code,
+        ErrorCode::InvalidArgs
+    );
+    assert!(adapter.input_log().is_empty());
+}
+
+#[test]
+fn screenshot_writes_a_png_and_never_overwrites() {
+    let adapter = FixtureAdapter::new();
+    let store = temp_store();
+    let first = commands::screenshot(&adapter, &store, None).unwrap();
+    assert_eq!(first["width"], 4);
+    let path = first["path"].as_str().unwrap().to_string();
+    assert!(std::path::Path::new(&path).is_file());
+    let error = commands::screenshot(&adapter, &store, Some(&path)).unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidArgs);
+}
+
+#[test]
+fn backends_without_input_or_screenshots_say_so() {
+    struct Bare;
+    impl agentic_desktop_core::PlatformAdapter for Bare {
+        fn platform(&self) -> &'static str {
+            "bare"
+        }
+    }
+    assert_eq!(
+        commands::press(&Bare, "a").unwrap_err().code,
+        ErrorCode::PlatformNotSupported
+    );
+    assert_eq!(
+        commands::mouse_wheel(&Bare, 1, 0).unwrap_err().code,
+        ErrorCode::PlatformNotSupported
+    );
+    let store = temp_store();
+    assert_eq!(
+        commands::screenshot(&Bare, &store, None).unwrap_err().code,
+        ErrorCode::PlatformNotSupported
+    );
+}

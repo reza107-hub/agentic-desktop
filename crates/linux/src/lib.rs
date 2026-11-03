@@ -3,12 +3,24 @@
 mod actions;
 mod bus;
 mod clipboard;
+mod input;
+mod keys;
 mod roles;
+mod screenshot;
 mod tree;
 
+use agentic_desktop_core::input::{Combo, MouseButton};
 use agentic_desktop_core::{
     AccessibilityNode, Action, ActionReport, AppError, AppInfo, PlatformAdapter,
 };
+use std::sync::atomic::{AtomicU32, Ordering};
+
+static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+/// A number that is different on every call in this process.
+pub(crate) fn unique_counter() -> u32 {
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
 use bus::{ACCESSIBLE, Atspi, Target};
 
 #[derive(Default)]
@@ -42,6 +54,26 @@ impl PlatformAdapter for LinuxAdapter {
         }
         apps.sort_by_key(|app| app.name.to_lowercase());
         Ok(apps)
+    }
+
+    fn press(&self, combo: &Combo) -> Result<(), AppError> {
+        input::press(combo)
+    }
+
+    fn mouse_move(&self, x: f64, y: f64) -> Result<(), AppError> {
+        input::mouse_move(x, y)
+    }
+
+    fn mouse_click(&self, x: f64, y: f64, button: MouseButton, count: u8) -> Result<(), AppError> {
+        input::mouse_click(x, y, button, count)
+    }
+
+    fn mouse_wheel(&self, dx: i32, dy: i32) -> Result<(), AppError> {
+        input::mouse_wheel(dx, dy)
+    }
+
+    fn screenshot(&self, out: &std::path::Path) -> Result<(u32, u32), AppError> {
+        screenshot::capture(out)
     }
 
     fn clipboard_get(&self) -> Result<String, AppError> {

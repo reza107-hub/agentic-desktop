@@ -1,0 +1,15 @@
+[package]
+name    = "agentic-desktop-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name       = "agentic_desktop_ffi"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+agentic-desktop      = { path = "../../src" }
+agentic-desktop-core.workspace = true
+serde_json.workspace = true
