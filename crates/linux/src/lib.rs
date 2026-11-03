@@ -2,6 +2,7 @@
 
 mod actions;
 mod bus;
+mod clipboard;
 mod roles;
 mod tree;
 
@@ -41,6 +42,18 @@ impl PlatformAdapter for LinuxAdapter {
         }
         apps.sort_by_key(|app| app.name.to_lowercase());
         Ok(apps)
+    }
+
+    fn clipboard_get(&self) -> Result<String, AppError> {
+        clipboard::get()
+    }
+
+    fn clipboard_set(&self, text: &str) -> Result<(), AppError> {
+        clipboard::set(text)
+    }
+
+    fn clipboard_clear(&self) -> Result<(), AppError> {
+        clipboard::clear()
     }
 
     fn capture_tree(&self, app: &str) -> Result<AccessibilityNode, AppError> {

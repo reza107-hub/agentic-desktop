@@ -1,5 +1,7 @@
 //! Windows backend, built on UI Automation. Compiled only on Windows.
 
+#[cfg(windows)]
+mod clipboard;
 mod roles;
 #[cfg(windows)]
 mod uia;
@@ -32,6 +34,14 @@ impl PlatformAdapter for WindowsAdapter {
 
     fn list_apps(&self) -> Result<Vec<AppInfo>, AppError> {
         uia::Uia::new()?.list_apps()
+    }
+
+    fn clipboard_get(&self) -> Result<String, AppError> {
+        clipboard::get()
+    }
+
+    fn clipboard_set(&self, text: &str) -> Result<(), AppError> {
+        clipboard::set(text)
     }
 
     fn capture_tree(&self, app: &str) -> Result<AccessibilityNode, AppError> {

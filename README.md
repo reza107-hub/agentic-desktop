@@ -43,7 +43,8 @@ If a user gave you this repository link and asked you to set it up, do these ste
 | Backend | AT-SPI | UI Automation | Accessibility (AX) |
 | List apps, snapshot | tested on a real desktop | compiles, **not run yet** | compiles, **not run yet** |
 | click, type, set-value | tested (GNOME Calculator) | compiles, **not run yet** | compiles, **not run yet** |
-| Keyboard, mouse, screenshots, clipboard | not built | not built | not built |
+| Clipboard (text) | needs a tool, see below; **not run yet** | compiles, **not run yet** | compiles, **not run yet** |
+| Keyboard, mouse, screenshots | not built | not built | not built |
 
 "Compiles" means it builds, passes lint and passes its unit tests on a real GitHub runner for that OS (see the CI workflow). It does not mean it has controlled a real app. Treat Windows and macOS as untested against real apps until someone runs them.
 
@@ -66,6 +67,7 @@ If you build from an NTFS drive on Linux, keep build output off it. Copy `.cargo
 
 - **Linux:** needs a graphical session with the AT-SPI service (`at-spi2-core`) running. It worked on GNOME with Wayland. If an app shows no elements, turn on accessibility support for your desktop and restart the app.
 - **Windows:** no grant needed for apps at your terminal's permission level. To control an app that runs as administrator, run your terminal as administrator too.
+- **Linux clipboard:** install one tool for your session: `sudo apt install wl-clipboard` (Wayland) or `sudo apt install xclip` (X11). Without it, clipboard commands return `PLATFORM_NOT_SUPPORTED` with this advice. On GNOME with Wayland, `wl-clipboard` may not work without extra steps, so test it first.
 - **macOS:** open System Settings, Privacy & Security, Accessibility, and allow your terminal (and your agent, if it runs the tool itself). Without this, every command returns `PERM_DENIED`.
 
 ## Quick start
@@ -96,6 +98,9 @@ AGENTIC_DESKTOP_FIXTURE=1 agentic-desktop snapshot --app Demo -i
 | `click REF` | Press, activate or toggle an element |
 | `type REF TEXT` | Add text to the end of a text field |
 | `set-value REF TEXT` | Replace a text field's whole value |
+| `clipboard-get` | Print the clipboard text. It may hold private content |
+| `clipboard-set TEXT` | Replace the clipboard text |
+| `clipboard-clear` | Empty the clipboard |
 
 ## Output
 

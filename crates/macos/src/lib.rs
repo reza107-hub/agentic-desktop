@@ -3,6 +3,8 @@
 #[cfg(target_os = "macos")]
 mod ax;
 #[cfg(target_os = "macos")]
+mod clipboard;
+#[cfg(target_os = "macos")]
 mod ffi;
 mod roles;
 
@@ -34,6 +36,14 @@ impl PlatformAdapter for MacOsAdapter {
 
     fn list_apps(&self) -> Result<Vec<AppInfo>, AppError> {
         ax::list_apps()
+    }
+
+    fn clipboard_get(&self) -> Result<String, AppError> {
+        clipboard::get()
+    }
+
+    fn clipboard_set(&self, text: &str) -> Result<(), AppError> {
+        clipboard::set(text)
     }
 
     fn capture_tree(&self, app: &str) -> Result<AccessibilityNode, AppError> {

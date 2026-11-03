@@ -30,6 +30,12 @@ enum Commands {
         #[arg(short = 'i', long)]
         interactive: bool,
     },
+    /// Print the clipboard text (it may be private)
+    ClipboardGet,
+    /// Replace the clipboard text
+    ClipboardSet { text: String },
+    /// Empty the clipboard
+    ClipboardClear,
     /// Click an element by ref
     Click { target: String },
     /// Type text into an element by ref
@@ -45,6 +51,9 @@ impl Commands {
             Commands::Status => "status",
             Commands::ListApps => "list-apps",
             Commands::Snapshot { .. } => "snapshot",
+            Commands::ClipboardGet => "clipboard-get",
+            Commands::ClipboardSet { .. } => "clipboard-set",
+            Commands::ClipboardClear => "clipboard-clear",
             Commands::Click { .. } => "click",
             Commands::Type { .. } => "type",
             Commands::SetValue { .. } => "set-value",
@@ -77,6 +86,9 @@ fn run(command: &Commands) -> Result<Value, AppError> {
         Commands::Snapshot { app, interactive } => {
             commands::take_snapshot(adapter, &SnapshotStore::from_env()?, app, *interactive)
         }
+        Commands::ClipboardGet => commands::clipboard_get(adapter),
+        Commands::ClipboardSet { text } => commands::clipboard_set(adapter, text),
+        Commands::ClipboardClear => commands::clipboard_clear(adapter),
         Commands::Click { target } => act(adapter, target, Action::Click),
         Commands::Type { target, text } => act(adapter, target, Action::Type(text.clone())),
         Commands::SetValue { target, value } => {

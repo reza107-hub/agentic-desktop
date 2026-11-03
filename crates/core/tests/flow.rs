@@ -208,3 +208,37 @@ fn generic_text_actions_do_not_earn_a_ref() {
     assert!(result.tree.children[0].ref_id.is_none());
     assert!(result.tree.children[1].ref_id.is_some());
 }
+
+#[test]
+fn clipboard_round_trips_and_clears() {
+    let adapter = FixtureAdapter::new();
+    assert_eq!(commands::clipboard_get(&adapter).unwrap()["text"], "");
+    let set = commands::clipboard_set(&adapter, "héllo").unwrap();
+    assert_eq!(set["chars"], 5);
+    let got = commands::clipboard_get(&adapter).unwrap();
+    assert_eq!(got["text"], "héllo");
+    commands::clipboard_clear(&adapter).unwrap();
+    assert_eq!(commands::clipboard_get(&adapter).unwrap()["text"], "");
+}
+
+#[test]
+fn oversized_clipboard_text_is_refused() {
+    let adapter = FixtureAdapter::new();
+    let big = "x".repeat(commands::MAX_CLIPBOARD_BYTES + 1);
+    let error = commands::clipboard_set(&adapter, &big).unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidArgs);
+}
+
+#[test]
+fn backends_without_a_clipboard_say_so() {
+    struct Bare;
+    impl agentic_desktop_core::PlatformAdapter for Bare {
+        fn platform(&self) -> &'static str {
+            "bare"
+        }
+    }
+    let error = commands::clipboard_get(&Bare).unwrap_err();
+    assert_eq!(error.code, ErrorCode::PlatformNotSupported);
+    let error = commands::clipboard_clear(&Bare).unwrap_err();
+    assert_eq!(error.code, ErrorCode::PlatformNotSupported);
+}

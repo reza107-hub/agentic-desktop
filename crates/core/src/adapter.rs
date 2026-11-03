@@ -53,6 +53,18 @@ pub trait PlatformAdapter {
         Err(AppError::not_supported("snapshot"))
     }
 
+    fn clipboard_get(&self) -> Result<String, AppError> {
+        Err(AppError::not_supported("clipboard-get"))
+    }
+
+    fn clipboard_set(&self, _text: &str) -> Result<(), AppError> {
+        Err(AppError::not_supported("clipboard-set"))
+    }
+
+    fn clipboard_clear(&self) -> Result<(), AppError> {
+        self.clipboard_set("")
+    }
+
     /// `path` is the child-index path inside a tree just returned by `capture_tree`.
     fn perform(
         &self,

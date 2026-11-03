@@ -32,4 +32,5 @@ Rust CLI + C library that lets AI agents see and operate desktop apps through th
 ## Roadmap
 Done: 1 core + CLI, 2 Linux AT-SPI (+2b speed, positional refs), 3 Windows UIA, 4 macOS AX.
 Windows and macOS backends compile and lint from Linux but have NOT run on real machines.
-Next: 5 input (keyboard, mouse), screenshots, clipboard, C library.
+Phase 5 order: clipboard (written; Linux needs wl-clipboard/xclip installed to live-test) -> keyboard and mouse -> screenshots -> C library.
+The fake desktop keeps its clipboard in memory, so it does not persist between CLI calls (tests cover the round trip).

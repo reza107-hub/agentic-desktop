@@ -17,6 +17,35 @@ pub fn list_apps(adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
     Ok(json!({ "apps": adapter.list_apps()? }))
 }
 
+/// Largest clipboard text returned or accepted, in bytes.
+pub const MAX_CLIPBOARD_BYTES: usize = 1_048_576;
+
+pub fn clipboard_get(adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
+    let text = adapter.clipboard_get()?;
+    if text.len() > MAX_CLIPBOARD_BYTES {
+        return Err(AppError::new(
+            crate::ErrorCode::ActionFailed,
+            format!("The clipboard holds more than {MAX_CLIPBOARD_BYTES} bytes of text"),
+        ));
+    }
+    Ok(json!({ "text": text, "chars": text.chars().count() }))
+}
+
+pub fn clipboard_set(adapter: &dyn PlatformAdapter, text: &str) -> Result<Value, AppError> {
+    if text.len() > MAX_CLIPBOARD_BYTES {
+        return Err(AppError::invalid_args(format!(
+            "Clipboard text is larger than {MAX_CLIPBOARD_BYTES} bytes"
+        )));
+    }
+    adapter.clipboard_set(text)?;
+    Ok(json!({ "chars": text.chars().count() }))
+}
+
+pub fn clipboard_clear(adapter: &dyn PlatformAdapter) -> Result<Value, AppError> {
+    adapter.clipboard_clear()?;
+    Ok(json!({ "cleared": true }))
+}
+
 pub fn take_snapshot(
     adapter: &dyn PlatformAdapter,
     store: &SnapshotStore,

@@ -11,6 +11,7 @@ pub const FIXTURE_APP: &str = "Demo";
 pub struct FixtureAdapter {
     tree: Mutex<AccessibilityNode>,
     performed: Mutex<Vec<String>>,
+    clipboard: Mutex<String>,
 }
 
 pub fn demo_tree() -> AccessibilityNode {
@@ -41,6 +42,7 @@ impl FixtureAdapter {
         Self {
             tree: Mutex::new(tree),
             performed: Mutex::new(Vec::new()),
+            clipboard: Mutex::new(String::new()),
         }
     }
 
@@ -81,6 +83,15 @@ impl PlatformAdapter for FixtureAdapter {
             name: FIXTURE_APP.to_string(),
             pid: None,
         }])
+    }
+
+    fn clipboard_get(&self) -> Result<String, AppError> {
+        Ok(self.clipboard.lock().unwrap().clone())
+    }
+
+    fn clipboard_set(&self, text: &str) -> Result<(), AppError> {
+        *self.clipboard.lock().unwrap() = text.to_string();
+        Ok(())
     }
 
     fn capture_tree(&self, app: &str) -> Result<AccessibilityNode, AppError> {
