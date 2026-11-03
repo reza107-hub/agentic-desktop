@@ -1,0 +1,24 @@
+[package]
+name    = "agentic-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "agentic-desktop"
+path = "main.rs"
+
+[dependencies]
+agentic-desktop-core.workspace = true
+clap.workspace                 = true
+serde_json.workspace           = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+agentic-desktop-linux = { path = "../crates/linux" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+agentic-desktop-macos = { path = "../crates/macos" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+agentic-desktop-windows = { path = "../crates/windows" }

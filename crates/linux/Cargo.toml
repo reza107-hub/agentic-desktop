@@ -1,0 +1,11 @@
+[package]
+name    = "agentic-desktop-linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+agentic-desktop-core.workspace = true
+serde.workspace                = true
+zbus                           = "5"
