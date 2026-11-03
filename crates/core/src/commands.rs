@@ -25,12 +25,17 @@ pub fn take_snapshot(
 ) -> Result<Value, AppError> {
     let result = snapshot::build(adapter, app, interactive_only)?;
     store.save(&result.refmap)?;
-    Ok(json!({
+    let mut data = json!({
         "app": result.app,
         "snapshot_id": result.snapshot_id,
         "ref_count": result.refmap.len(),
+        "complete": result.complete,
         "tree": result.tree,
-    }))
+    });
+    if !result.complete {
+        data["truncated"] = json!(true);
+    }
+    Ok(data)
 }
 
 /// Act on a ref: find the element again in a fresh capture, then perform the action.
@@ -50,7 +55,17 @@ pub fn act_on_ref(
         .with_suggestion("Take a new snapshot")
     })?;
     let live_tree = adapter.capture_tree(&entry.app)?;
-    let path = resolve(&live_tree, entry)?;
-    let report = adapter.perform(&entry.app, &path, &action)?;
-    Ok(json!({ "ref": ref_text, "action": action.name(), "result": report }))
+    let resolved = resolve(&live_tree, entry)?;
+    let report = adapter.perform(&entry.app, &resolved.path, &action)?;
+    let matched_by = if resolved.positional {
+        "position"
+    } else {
+        "identity"
+    };
+    Ok(json!({
+        "ref": ref_text,
+        "action": action.name(),
+        "matched_by": matched_by,
+        "result": report,
+    }))
 }

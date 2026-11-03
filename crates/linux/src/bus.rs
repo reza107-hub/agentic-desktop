@@ -186,3 +186,76 @@ impl Atspi {
         reply.body().deserialize::<u32>().ok()
     }
 }
+
+impl Atspi {
+    /// Every property of one interface in a single call.
+    pub fn all_properties(
+        &self,
+        target: &Target,
+        interface: &str,
+    ) -> Result<std::collections::HashMap<String, OwnedValue>, AppError> {
+        self.call(
+            target,
+            "org.freedesktop.DBus.Properties",
+            "GetAll",
+            &(interface,),
+        )
+    }
+}
+
+/// One row of `org.a11y.atspi.Cache.GetItems`, which describes a whole app in a single reply.
+#[derive(Debug, Clone)]
+pub struct CacheItem {
+    pub target: Target,
+    pub interfaces: Vec<String>,
+    pub name: String,
+    pub role: u32,
+    pub description: String,
+    pub states: Vec<u32>,
+}
+
+type RawCacheItem = (
+    (String, OwnedObjectPath),
+    (String, OwnedObjectPath),
+    (String, OwnedObjectPath),
+    i32,
+    i32,
+    Vec<String>,
+    String,
+    u32,
+    String,
+    Vec<u32>,
+);
+
+impl Atspi {
+    pub fn cache_items(&self, app_bus: &str) -> Result<Vec<CacheItem>, AppError> {
+        let target = Target::new(app_bus, "/org/a11y/atspi/cache");
+        let raw: Vec<RawCacheItem> = self.call(&target, "org.a11y.atspi.Cache", "GetItems", &())?;
+        Ok(raw
+            .into_iter()
+            .map(
+                |(
+                    me,
+                    _app,
+                    _parent,
+                    _index,
+                    _count,
+                    interfaces,
+                    name,
+                    role,
+                    description,
+                    states,
+                )| {
+                    CacheItem {
+                        target: Target::new(me.0, me.1.as_str()),
+                        interfaces,
+                        name,
+                        role,
+                        description,
+                        states,
+                    }
+                },
+            )
+            .collect())
+    }
+}

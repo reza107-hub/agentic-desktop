@@ -12,6 +12,8 @@ pub struct SnapshotResult {
     pub app: String,
     pub tree: AccessibilityNode,
     pub refmap: RefMap,
+    /// False when the backend could not read the whole window.
+    pub complete: bool,
 }
 
 /// A short id like `s8f3k2p9`: time, process id and a counter, hashed.
@@ -55,6 +57,7 @@ pub fn build(
     let mut tree = adapter.capture_tree(app)?;
     let snapshot_id = new_snapshot_id();
     let refmap = RefMap::allocate(&mut tree, &snapshot_id, app);
+    let complete = !tree.any_truncated();
     if interactive_only {
         prune_to_interactive(&mut tree);
     }
@@ -63,5 +66,6 @@ pub fn build(
         app: app.to_string(),
         tree,
         refmap,
+        complete,
     })
 }

@@ -74,7 +74,7 @@ fn click_by_ref_reaches_the_adapter() {
     let snap = commands::take_snapshot(&adapter, &store, FIXTURE_APP, false).unwrap();
     let target = ref_of(&snap, "Save");
     commands::act_on_ref(&adapter, &store, &target, Action::Click).unwrap();
-    assert_eq!(adapter.performed(), vec!["click Save"]);
+    assert_eq!(adapter.performed(), vec!["click Save [0, 0]"]);
 }
 
 #[test]
@@ -89,17 +89,92 @@ fn removed_element_gives_stale_ref() {
     assert!(adapter.performed().is_empty());
 }
 
+fn ok_button() -> AccessibilityNode {
+    AccessibilityNode::new("button").named("OK")
+}
+
+fn row(label: &str) -> AccessibilityNode {
+    AccessibilityNode::new("group")
+        .named(label)
+        .with_children(vec![ok_button()])
+}
+
+fn first_ref(snapshot: &serde_json::Value, wanted: usize) -> String {
+    let mut refs = Vec::new();
+    fn collect(node: &serde_json::Value, out: &mut Vec<String>) {
+        if let Some(id) = node["ref_id"].as_str() {
+            out.push(id.to_string());
+        }
+        for child in node["children"].as_array().into_iter().flatten() {
+            collect(child, out);
+        }
+    }
+    collect(&snapshot["tree"], &mut refs);
+    refs.remove(wanted)
+}
+
 #[test]
-fn duplicate_elements_give_ambiguous_target() {
-    let twin = || AccessibilityNode::new("button").named("OK");
+fn looks_alike_siblings_are_told_apart_by_position() {
     let adapter = FixtureAdapter::with_tree(
-        AccessibilityNode::new("window").with_children(vec![twin(), twin()]),
+        AccessibilityNode::new("window").with_children(vec![ok_button(), ok_button()]),
     );
     let store = temp_store();
     let snap = commands::take_snapshot(&adapter, &store, FIXTURE_APP, false).unwrap();
-    let target = ref_of(&snap, "OK");
-    let error = commands::act_on_ref(&adapter, &store, &target, Action::Click).unwrap_err();
+    let second = first_ref(&snap, 1);
+    let report = commands::act_on_ref(&adapter, &store, &second, Action::Click).unwrap();
+    assert_eq!(report["matched_by"], "position");
+    assert_eq!(adapter.performed(), vec!["click OK [1]"]);
+}
+
+#[test]
+fn identical_buttons_in_different_rows_resolve_to_their_own_row() {
+    let adapter = FixtureAdapter::with_tree(
+        AccessibilityNode::new("window").with_children(vec![row("A"), row("B")]),
+    );
+    let store = temp_store();
+    let snap = commands::take_snapshot(&adapter, &store, FIXTURE_APP, false).unwrap();
+    commands::act_on_ref(&adapter, &store, &first_ref(&snap, 1), Action::Click).unwrap();
+    assert_eq!(adapter.performed(), vec!["click OK [1, 0]"]);
+}
+
+#[test]
+fn positional_ref_goes_stale_when_its_position_disappears() {
+    let adapter = FixtureAdapter::with_tree(
+        AccessibilityNode::new("window").with_children(vec![ok_button(), ok_button()]),
+    );
+    let store = temp_store();
+    let snap = commands::take_snapshot(&adapter, &store, FIXTURE_APP, false).unwrap();
+    let second = first_ref(&snap, 1);
+    adapter.set_tree(AccessibilityNode::new("window").with_children(vec![ok_button()]));
+    let error = commands::act_on_ref(&adapter, &store, &second, Action::Click).unwrap_err();
+    assert_eq!(error.code, ErrorCode::StaleRef);
+}
+
+#[test]
+fn unique_ref_becomes_ambiguous_when_a_twin_appears() {
+    let adapter = FixtureAdapter::with_tree(
+        AccessibilityNode::new("window").with_children(vec![ok_button()]),
+    );
+    let store = temp_store();
+    let snap = commands::take_snapshot(&adapter, &store, FIXTURE_APP, false).unwrap();
+    let only = first_ref(&snap, 0);
+    adapter
+        .set_tree(AccessibilityNode::new("window").with_children(vec![ok_button(), ok_button()]));
+    let error = commands::act_on_ref(&adapter, &store, &only, Action::Click).unwrap_err();
     assert_eq!(error.code, ErrorCode::AmbiguousTarget);
+}
+
+#[test]
+fn truncated_trees_report_complete_false() {
+    let mut cut = AccessibilityNode::new("window").with_children(vec![ok_button()]);
+    cut.subtree_truncated = true;
+    let adapter = FixtureAdapter::with_tree(cut);
+    let store = temp_store();
+    let snap = commands::take_snapshot(&adapter, &store, FIXTURE_APP, false).unwrap();
+    assert_eq!(snap["complete"], false);
+    assert_eq!(snap["truncated"], true);
+    let full = commands::take_snapshot(&FixtureAdapter::new(), &store, FIXTURE_APP, false).unwrap();
+    assert_eq!(full["complete"], true);
 }
 
 #[test]
@@ -110,4 +185,26 @@ fn unknown_snapshot_and_app_report_clear_codes() {
     assert_eq!(error.code, ErrorCode::SnapshotNotFound);
     let error = commands::take_snapshot(&adapter, &store, "Nope", false).unwrap_err();
     assert_eq!(error.code, ErrorCode::AppNotFound);
+}
+
+#[test]
+fn generic_text_actions_do_not_earn_a_ref() {
+    let label = AccessibilityNode::new("statictext")
+        .named("7")
+        .with_actions(&[
+            "clipboard.copy",
+            "selection.select-all",
+            "menu.popup",
+            "link.copy",
+        ]);
+    let real = AccessibilityNode::new("statictext")
+        .named("Open")
+        .with_actions(&["clipboard.copy", "default.activate"]);
+    let adapter = FixtureAdapter::with_tree(
+        AccessibilityNode::new("window").with_children(vec![label, real]),
+    );
+    let result = snapshot::build(&adapter, FIXTURE_APP, false).unwrap();
+    assert_eq!(result.refmap.len(), 1);
+    assert!(result.tree.children[0].ref_id.is_none());
+    assert!(result.tree.children[1].ref_id.is_some());
 }

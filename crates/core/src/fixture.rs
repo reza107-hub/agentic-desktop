@@ -103,7 +103,7 @@ impl PlatformAdapter for FixtureAdapter {
         self.performed
             .lock()
             .unwrap()
-            .push(format!("{} {}", action.name(), label));
+            .push(format!("{} {} {:?}", action.name(), label, path));
         Ok(ActionReport::unverified())
     }
 }

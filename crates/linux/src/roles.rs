@@ -17,7 +17,7 @@ pub fn canonical_role(role_name: &str, editable: bool) -> String {
         "menu item" => "menuitem",
         "page tab" => "tab",
         "combo box" => "combobox",
-        "entry" | "textbox" | "password text" | "spin button" => "textfield",
+        "entry" | "textbox" | "text box" | "password text" | "spin button" => "textfield",
         "text" if editable => "textfield",
         "text" | "label" | "static" | "heading" | "paragraph" => "statictext",
         "link" => "link",
@@ -45,6 +45,7 @@ mod tests {
         assert_eq!(canonical_role("text", false), "statictext");
         assert_eq!(canonical_role("table cell", false), "tablecell");
         assert_eq!(canonical_role("textbox", false), "textfield");
+        assert_eq!(canonical_role("text box", false), "textfield");
         assert_eq!(canonical_role("generic", false), "group");
     }
 

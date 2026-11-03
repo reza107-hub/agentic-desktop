@@ -61,3 +61,68 @@ impl PlatformAdapter for LinuxAdapter {
         atspi.perform_on(&target, action)
     }
 }
+
+#[cfg(test)]
+mod live_tests {
+    use super::bus::Atspi;
+    use agentic_desktop_core::AccessibilityNode;
+
+    type Signature = (
+        Vec<usize>,
+        String,
+        Option<String>,
+        Option<String>,
+        Vec<String>,
+    );
+
+    /// The cache names one role number once per app, so "tabpanel" and "group" can swap.
+    fn same_role(role: &str) -> String {
+        if role == "tabpanel" { "group" } else { role }.to_string()
+    }
+
+    fn actionable(node: &AccessibilityNode, path: &mut Vec<usize>, out: &mut Vec<Signature>) {
+        if node.is_actionable() {
+            let mut actions = node.available_actions.clone();
+            actions.sort();
+            out.push((
+                path.clone(),
+                same_role(&node.role),
+                node.name.clone(),
+                node.native_id.clone(),
+                actions,
+            ));
+        }
+        for (index, child) in node.children.iter().enumerate() {
+            path.push(index);
+            actionable(child, path, out);
+            path.pop();
+        }
+    }
+
+    /// The fast cache reader must find the same actionable elements as the slow walk.
+    /// Run with: cargo test -p agentic-desktop-linux -- --ignored --nocapture cache_matches_slow_walk
+    #[test]
+    #[ignore = "needs a live desktop session with Nautilus running"]
+    fn cache_matches_slow_walk() {
+        let atspi = Atspi::connect().unwrap();
+        let Ok(app) = atspi.find_app("org.gnome.Nautilus") else {
+            println!("SKIPPED: Nautilus is not running");
+            return;
+        };
+        let started = std::time::Instant::now();
+        let fast = atspi.capture_app(&app).unwrap();
+        let fast_time = started.elapsed();
+        let started = std::time::Instant::now();
+        let slow = atspi.capture_slow(&app).unwrap();
+        let slow_time = started.elapsed();
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        actionable(&fast, &mut Vec::new(), &mut a);
+        actionable(&slow, &mut Vec::new(), &mut b);
+        println!(
+            "fast {fast_time:?} ({} actionable), slow {slow_time:?} ({} actionable)",
+            a.len(),
+            b.len()
+        );
+        assert_eq!(a, b);
+    }
+}
