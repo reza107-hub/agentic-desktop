@@ -16,9 +16,14 @@ Rust CLI + C library that lets AI agents see and operate desktop apps through th
 - Live checks are `#[ignore]` tests: `cargo test -p agentic-desktop-linux -- --ignored --nocapture cache_matches_slow_walk` (needs Nautilus running).
 - Never `pkill -f` or `pgrep -x` long names in scripts: `-f` can match your own shell.
 
+## Windows notes
+- Backend is `crates/windows/src/uia.rs`; role mapping in `roles.rs` is pure and tested everywhere. The app is a synthetic root and its windows are its children, so `path[0]` is a window index.
+- Check from Linux with `cargo check -p agentic-desktop --target x86_64-pc-windows-msvc` (run `rustup target add` first). CI builds and tests it on `windows-latest`.
+
 ## Environment
 - Source is on an NTFS drive: keep build output off it. Copy `.cargo/config.toml.example` to `.cargo/config.toml` and set `target-dir` for your machine (that file is git-ignored).
 - Use pnpm if a Node package manager is ever needed.
 
 ## Roadmap
-Phase 1 core + CLI (done) -> 2 Linux AT-SPI -> 3 Windows UIA -> 4 macOS AX -> 5 input, screenshots, clipboard, C library.
+Done: 1 core + CLI, 2 Linux AT-SPI (+2b speed, positional refs), 3 Windows UIA (compiles, NOT yet run on a real Windows machine).
+Next: 4 macOS AX -> 5 input, screenshots, clipboard, C library.

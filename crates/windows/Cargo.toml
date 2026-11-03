@@ -7,3 +7,12 @@ publish = false
 
 [dependencies]
 agentic-desktop-core.workspace = true
+
+[target.'cfg(windows)'.dependencies.windows]
+version  = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Threading",
+    "Win32_UI_Accessibility",
+]

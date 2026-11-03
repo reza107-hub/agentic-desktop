@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
+      - name: Release build stays small
+        shell: bash
+        run: |
+          cargo build --release -p agentic-desktop
+          bin=target/release/agentic-desktop
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          size=$(wc -c < "$bin")
+          echo "binary size: $size bytes"
+          [ "$size" -lt 15000000 ]
+      - name: Fixture smoke test
+        shell: bash
+        env:
+          AGENTIC_DESKTOP_FIXTURE: "1"
+          AGENTIC_DESKTOP_HOME: ${{ runner.temp }}/agentic-desktop
+        run: |
+          bin=target/release/agentic-desktop
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          "$bin" snapshot --app Demo -i | grep '"ok":true'
+          set +e
+          "$bin" click '@e1'
+          code=$?
+          set -e
+          [ "$code" -eq 2 ]
+
+  cross-check:
+    name: cross-check ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-pc-windows-msvc, aarch64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Core compiles for the target
+        run: cargo check -p agentic-desktop-core --all-targets --target ${{ matrix.target }}
